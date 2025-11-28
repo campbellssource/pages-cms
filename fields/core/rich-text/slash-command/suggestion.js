@@ -66,27 +66,30 @@ export default function suggestion(openMediaDialog) {
           title: "Code",
           command: ({ editor, range }) => editor.chain().focus().deleteRange(range).toggleCodeBlock().run(),
         },
-        {
-          icon: <Youtube className="h-4 w-4"/>,
-          title: "YouTube",
-          command: ({ editor, range }) => {
-            const url = window.prompt('Enter YouTube URL:');
-            if (url) {
-              editor.chain().focus().deleteRange(range).setYoutubeVideo({ src: url }).run();
-            } else {
-              editor.chain().focus().deleteRange(range).run();
-            }
-          },
-        },
       ];
       
-      if (openMediaDialog) suggestionsArray.splice(6, 0, {
-        icon: <Image className="h-4 w-4"/>,
-        title: "Image",
+      if (openMediaDialog) {
+        suggestionsArray.push({
+          icon: <Image className="h-4 w-4"/>,
+          title: "Image",
+          command: ({ editor, range }) => {
+            // TODO: fix mouse click event (close dialog immediately)
+            editor.chain().focus().deleteRange(range).run();
+            openMediaDialog();
+          },
+        });
+      }
+      
+      suggestionsArray.push({
+        icon: <Youtube className="h-4 w-4"/>,
+        title: "YouTube",
         command: ({ editor, range }) => {
-          // TODO: fix mouse click event (close dialog immediately)
-          editor.chain().focus().deleteRange(range).run();
-          openMediaDialog();
+          const url = window.prompt('Enter YouTube URL:');
+          if (url) {
+            editor.chain().focus().deleteRange(range).setYoutubeVideo({ src: url }).run();
+          } else {
+            editor.chain().focus().deleteRange(range).run();
+          }
         },
       });
 
