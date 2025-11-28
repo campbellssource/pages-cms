@@ -12,6 +12,7 @@ import TableHeader from "@tiptap/extension-table-header";
 import TableRow from "@tiptap/extension-table-row";
 import TextAlign from "@tiptap/extension-text-align";
 import Underline from "@tiptap/extension-underline";
+import Youtube from "@tiptap/extension-youtube";
 import { useConfig } from "@/contexts/config-context";
 import { useRepo } from "@/contexts/repo-context";
 import { getRawUrl, relativeToRawUrls } from "@/lib/githubImage";
@@ -164,7 +165,14 @@ const EditComponent = forwardRef((props: any, ref) => {
       TableHeader,
       TableCell,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Underline
+      Underline,
+      Youtube.configure({
+        inline: false,
+        ccLanguage: 'en',
+        interfaceLanguage: 'en',
+        width: 640,
+        height: 480,
+      })
     ],
     content: "<p></p>",
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
