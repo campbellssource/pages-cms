@@ -210,10 +210,12 @@ const EditComponent = forwardRef((props: any, ref) => {
       Underline,
       Youtube.configure({
         inline: true,
-        ccLanguage: 'en',
-        interfaceLanguage: 'en',
         width: 640,
         height: 480,
+        HTMLAttributes: {
+          frameborder: '0',
+          allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture',
+        },
       })
     ],
     content: "<p></p>",
