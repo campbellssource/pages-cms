@@ -13,6 +13,9 @@ import TableRow from "@tiptap/extension-table-row";
 import TextAlign from "@tiptap/extension-text-align";
 import Underline from "@tiptap/extension-underline";
 import Youtube from "@tiptap/extension-youtube";
+import TurndownService from "turndown";
+import { tables, strikethrough } from "joplin-turndown-plugin-gfm";
+import { marked } from "marked";
 import { useConfig } from "@/contexts/config-context";
 import { useRepo } from "@/contexts/repo-context";
 import { getRawUrl, relativeToRawUrls } from "@/lib/githubImage";
@@ -21,6 +24,7 @@ import "./edit-component.css";
 import Commands from './slash-command/commands';
 import suggestion from './slash-command/suggestion';
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,6 +48,8 @@ import {
   Bold,
   ChevronsUpDown,
   Code,
+  Code2,
+  Eye,
   Heading1,
   Heading2,
   Heading3,
@@ -109,6 +115,42 @@ const EditComponent = forwardRef((props: any, ref) => {
 
   const [linkUrl, setLinkUrl] = useState("");
   const [imageAlt, setImageAlt] = useState("");
+  const [viewMode, setViewMode] = useState<'rich-text' | 'markdown'>('rich-text');
+  const [markdownContent, setMarkdownContent] = useState("");
+
+  // Initialize Turndown service for HTML to Markdown conversion
+  const turndownService = useMemo(() => {
+    const service = new TurndownService({
+      headingStyle: "atx",
+      codeBlockStyle: "fenced"
+    });
+    service.use([tables, strikethrough]);
+    service.addRule("retain-html", {
+      filter: (node: any) => (
+        (
+          node.nodeName === "IMG" && (node.getAttribute("width") || node.getAttribute("height"))
+        ) ||
+        (
+          ["P", "DIV", "H1", "H2", "H3", "H4", "H5", "H6"].includes(node.nodeName) && (node.getAttribute("style") || node.getAttribute("class"))
+        )
+      ),
+      replacement: (content: string, node: any) => node.outerHTML
+    });
+    return service;
+  }, []);
+
+  // Convert HTML to Markdown
+  const htmlToMarkdown = useCallback((html: string) => {
+    let content = html;
+    // Strip colgroup tags before conversion
+    content = content.replace(/<colgroup>.*?<\/colgroup>/g, '');
+    return turndownService.turndown(content);
+  }, [turndownService]);
+
+  // Convert Markdown to HTML
+  const markdownToHtml = useCallback((markdown: string) => {
+    return marked(markdown) as string;
+  }, []);
 
   const openMediaDialog = mediaConfig?.input
     ? () => { if (mediaDialogRef?.current) mediaDialogRef.current.open() }
@@ -167,7 +209,7 @@ const EditComponent = forwardRef((props: any, ref) => {
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Underline,
       Youtube.configure({
-        inline: false,
+        inline: true,
         ccLanguage: 'en',
         interfaceLanguage: 'en',
         width: 640,
@@ -220,6 +262,35 @@ const EditComponent = forwardRef((props: any, ref) => {
     }
   }, [config, editor, isPrivate, mediaConfig?.name]);
 
+  // Toggle between rich-text and markdown view
+  const toggleViewMode = useCallback(() => {
+    if (!editor) return;
+    
+    if (viewMode === 'rich-text') {
+      // Switching to markdown: convert current HTML to markdown
+      const html = editor.getHTML();
+      const markdown = htmlToMarkdown(html);
+      setMarkdownContent(markdown);
+      setViewMode('markdown');
+    } else {
+      // Switching to rich-text: convert markdown back to HTML
+      const html = markdownToHtml(markdownContent);
+      editor.commands.setContent(html);
+      setViewMode('rich-text');
+    }
+  }, [viewMode, editor, markdownContent, htmlToMarkdown, markdownToHtml]);
+
+  // Handle markdown textarea changes
+  const handleMarkdownChange = useCallback((e: any) => {
+    const newMarkdown = e.target.value;
+    setMarkdownContent(newMarkdown);
+    // Update the underlying editor content (this will trigger onChange)
+    if (editor) {
+      const html = markdownToHtml(newMarkdown);
+      editor.commands.setContent(html);
+    }
+  }, [editor, markdownToHtml]);
+
   const getBlockIcon = (editor: any) => {
     if (editor.isActive("heading", { level: 1 })) return <Heading1 className="h-4 w-4" />;
     if (editor.isActive("heading", { level: 2 })) return <Heading2 className="h-4 w-4" />;
@@ -242,8 +313,41 @@ const EditComponent = forwardRef((props: any, ref) => {
     <>
       <Skeleton className={cn("rounded-md h-[8.5rem]", isContentReady ? "hidden" : "")} />
       <div className={!isContentReady ? "hidden" : ""}>
-        {editor && <BubbleMenu editor={editor} tippyOptions={{ duration: 25, animation: "scale", maxWidth: "370px" }}>
-          <div className="p-1 rounded-md bg-popover border flex gap-x-[1px] items-center focus-visible:outline-none shadow-md" ref={bubbleMenuRef}>
+        {/* Toggle button for switching between rich-text and markdown */}
+        <div className="flex justify-end mb-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={toggleViewMode}
+            className="gap-x-2"
+          >
+            {viewMode === 'rich-text' ? (
+              <>
+                <Code2 className="h-4 w-4" />
+                Markdown
+              </>
+            ) : (
+              <>
+                <Eye className="h-4 w-4" />
+                Rich Text
+              </>
+            )}
+          </Button>
+        </div>
+        
+        {/* Markdown textarea view */}
+        {viewMode === 'markdown' ? (
+          <Textarea
+            value={markdownContent}
+            onChange={handleMarkdownChange}
+            className="font-mono min-h-[20rem]"
+            placeholder="Enter markdown content..."
+          />
+        ) : (
+          <>
+            {editor && <BubbleMenu editor={editor} tippyOptions={{ duration: 25, animation: "scale", maxWidth: "370px" }}>
+              <div className="p-1 rounded-md bg-popover border flex gap-x-[1px] items-center focus-visible:outline-none shadow-md" ref={bubbleMenuRef}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -494,16 +598,18 @@ const EditComponent = forwardRef((props: any, ref) => {
               </Popover>
             }
           </div>
-        </BubbleMenu>}
-        <EditorContent editor={editor} />
-        {mediaConfig && <MediaDialog 
-          ref={mediaDialogRef} 
-          media={mediaConfig?.name}
-          initialPath={rootPath}
-          extensions={allowedExtensions}
-          selected={[]} 
-          onSubmit={handleMediaDialogSubmit} 
-        />}
+            </BubbleMenu>}
+            <EditorContent editor={editor} />
+            {mediaConfig && <MediaDialog 
+              ref={mediaDialogRef} 
+              media={mediaConfig?.name}
+              initialPath={rootPath}
+              extensions={allowedExtensions}
+              selected={[]} 
+              onSubmit={handleMediaDialogSubmit} 
+            />}
+          </>
+        )}
       </div>
     </>
   )
