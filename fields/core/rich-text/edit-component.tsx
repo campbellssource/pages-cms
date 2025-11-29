@@ -355,16 +355,19 @@ const EditComponent = forwardRef((props: any, ref) => {
         </div>
         
         {/* Markdown textarea view */}
-        {viewMode === 'markdown' ? (
+        {viewMode === 'markdown' && (
           <Textarea
             value={markdownContent}
             onChange={handleMarkdownChange}
             className="font-mono min-h-[20rem]"
             placeholder="Enter markdown content..."
           />
-        ) : (
+        )}
+        
+        {/* Rich text editor view */}
+        {viewMode === 'rich-text' && (
           <>
-            {editor && viewMode === 'rich-text' && <BubbleMenu editor={editor} tippyOptions={{ duration: 25, animation: "scale", maxWidth: "370px" }} shouldShow={() => viewMode === 'rich-text'}>
+            {editor && <BubbleMenu key="bubble-menu" editor={editor} tippyOptions={{ duration: 25, animation: "scale", maxWidth: "370px" }}>
               <div className="p-1 rounded-md bg-popover border flex gap-x-[1px] items-center focus-visible:outline-none shadow-md" ref={bubbleMenuRef}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
