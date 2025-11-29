@@ -54,6 +54,9 @@ const write = (value: any, field: Field, config: Record<string, any>) => {
         ) ||
         (
           ["P", "DIV", "H1", "H2", "H3", "H4", "H5", "H6"].includes(node.nodeName) && (node.getAttribute("style") || node.getAttribute("class"))
+        ) ||
+        (
+          node.nodeName === "IFRAME"
         )
       ),
       replacement: (content: string, node: any, options: any) => node.outerHTML
