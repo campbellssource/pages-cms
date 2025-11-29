@@ -42,6 +42,12 @@ const write = (value: any, field: Field, config: Record<string, any>) => {
   }
 
   if (field.options?.format !== "html") {
+    // Clean up YouTube iframes - remove invalid attributes that TipTap adds
+    content = content.replace(
+      /<iframe([^>]*?)(?:\s+(?:allowfullscreen|autoplay|ccLanguage|ccLoadPolicy|disableKBcontrols|enableIFrameApi|endTime|interfaceLanguage|ivLoadPolicy|loop|modestBranding|origin|playlist|progressBarColor|rel|start))="[^"]*"/gi,
+      '<iframe$1'
+    );
+    
     const turndownService = new TurndownService({
       headingStyle: "atx",
       codeBlockStyle: "fenced"
@@ -57,6 +63,9 @@ const write = (value: any, field: Field, config: Record<string, any>) => {
         ) ||
         (
           node.nodeName === "IFRAME"
+        ) ||
+        (
+          node.nodeName === "DIV" && node.getAttribute("data-youtube-video") !== null
         )
       ),
       replacement: (content: string, node: any, options: any) => node.outerHTML
