@@ -117,7 +117,6 @@ const EditComponent = forwardRef((props: any, ref) => {
   const [imageAlt, setImageAlt] = useState("");
   const [viewMode, setViewMode] = useState<'rich-text' | 'markdown'>('rich-text');
   const [markdownContent, setMarkdownContent] = useState("");
-  const [showBubbleMenu, setShowBubbleMenu] = useState(true);
 
   // Initialize Turndown service for HTML to Markdown conversion
   const turndownService = useMemo(() => {
@@ -286,24 +285,16 @@ const EditComponent = forwardRef((props: any, ref) => {
     if (!editor) return;
     
     if (viewMode === 'rich-text') {
-      // Switching to markdown: hide BubbleMenu first to prevent cleanup errors
-      setShowBubbleMenu(false);
-      
-      // Small delay to ensure BubbleMenu is unmounted before switching views
-      setTimeout(() => {
-        const html = editor.getHTML();
-        const markdown = htmlToMarkdown(html);
-        setMarkdownContent(markdown);
-        setViewMode('markdown');
-      }, 0);
+      // Switching to markdown: convert current HTML to markdown
+      const html = editor.getHTML();
+      const markdown = htmlToMarkdown(html);
+      setMarkdownContent(markdown);
+      setViewMode('markdown');
     } else {
       // Switching to rich-text: convert markdown back to HTML
       const html = markdownToHtml(markdownContent);
       editor.commands.setContent(html);
       setViewMode('rich-text');
-      
-      // Re-enable BubbleMenu after switching back
-      setTimeout(() => setShowBubbleMenu(true), 0);
     }
   }, [viewMode, editor, markdownContent, htmlToMarkdown, markdownToHtml]);
 
@@ -363,21 +354,20 @@ const EditComponent = forwardRef((props: any, ref) => {
           </Button>
         </div>
         
-        {/* Markdown textarea view */}
-        {viewMode === 'markdown' && (
+        {/* Markdown textarea view - always render but hide with CSS */}
+        <div className={viewMode === 'markdown' ? '' : 'hidden'}>
           <Textarea
             value={markdownContent}
             onChange={handleMarkdownChange}
             className="font-mono min-h-[20rem]"
             placeholder="Enter markdown content..."
           />
-        )}
+        </div>
         
-        {/* Rich text editor view */}
-        {viewMode === 'rich-text' && (
-          <>
-            {editor && showBubbleMenu && <BubbleMenu key="bubble-menu" editor={editor} tippyOptions={{ duration: 25, animation: "scale", maxWidth: "370px" }}>
-              <div className="p-1 rounded-md bg-popover border flex gap-x-[1px] items-center focus-visible:outline-none shadow-md" ref={bubbleMenuRef}>
+        {/* Rich text editor view - always render but hide with CSS */}
+        <div className={viewMode === 'rich-text' ? '' : 'hidden'}>
+          {editor && <BubbleMenu editor={editor} tippyOptions={{ duration: 25, animation: "scale", maxWidth: "370px" }}>
+            <div className="p-1 rounded-md bg-popover border flex gap-x-[1px] items-center focus-visible:outline-none shadow-md" ref={bubbleMenuRef}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -628,18 +618,17 @@ const EditComponent = forwardRef((props: any, ref) => {
               </Popover>
             }
           </div>
-            </BubbleMenu>}
-            <EditorContent editor={editor} />
-            {mediaConfig && <MediaDialog 
-              ref={mediaDialogRef} 
-              media={mediaConfig?.name}
-              initialPath={rootPath}
-              extensions={allowedExtensions}
-              selected={[]} 
-              onSubmit={handleMediaDialogSubmit} 
-            />}
-          </>
-        )}
+          </BubbleMenu>}
+          <EditorContent editor={editor} />
+          {mediaConfig && <MediaDialog 
+            ref={mediaDialogRef} 
+            media={mediaConfig?.name}
+            initialPath={rootPath}
+            extensions={allowedExtensions}
+            selected={[]} 
+            onSubmit={handleMediaDialogSubmit} 
+          />}
+        </div>
       </div>
     </>
   )
