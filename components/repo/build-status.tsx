@@ -38,6 +38,7 @@ interface BuildStatusData {
   checkRuns: CheckRun[];
   commitStatuses: CommitStatus[];
   totalCount: number;
+  permissionError?: boolean;
 }
 
 export function BuildStatus() {
@@ -73,6 +74,11 @@ export function BuildStatus() {
         if (data.status === "success") {
           setBuildStatus(data.data);
           setFailureCount(0); // Reset failure count on success
+          
+          // If there's a permission error, stop polling permanently
+          if (data.data.permissionError) {
+            setFailureCount(999); // Stop polling
+          }
         } else {
           throw new Error(data.message || "Failed to fetch build status");
         }
@@ -199,8 +205,8 @@ export function BuildStatus() {
 
   const githubActionsUrl = `https://github.com/${owner}/${repo}/actions`;
 
-  if (buildStatus.totalCount === 0) {
-    return <div className="h-[72px]" />; // Reserve space even when no checks
+  if (buildStatus.totalCount === 0 || buildStatus.permissionError) {
+    return null; // Don't show anything if no checks or no permissions
   }
 
   return (

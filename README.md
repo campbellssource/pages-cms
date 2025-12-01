@@ -71,6 +71,7 @@ You will need to fill in the following information:
         - Administration: Read & Write
         - Contents: Read & Write
         - Metadata: Read only
+        - actions: Read only - to show build status
     - Organization permissions: nothing.
     - Account permissions: nothing.
 - **Subscribe to events**:

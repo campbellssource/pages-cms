@@ -34,13 +34,33 @@ export async function GET(
 
     const sha = branchData.data.commit.sha;
 
-    // Fetch check runs for this commit
-    const checkRunsResponse = await octokit.rest.checks.listForRef({
-      owner: params.owner,
-      repo: params.repo,
-      ref: sha,
-      per_page: 100,
-    });
+    // Try to fetch check runs - gracefully handle permission errors
+    let checkRunsResponse;
+    try {
+      checkRunsResponse = await octokit.rest.checks.listForRef({
+        owner: params.owner,
+        repo: params.repo,
+        ref: sha,
+        per_page: 100,
+      });
+    } catch (error: any) {
+      // If we don't have permission to access checks API, return empty result
+      if (error.status === 403 || error.message?.includes("Resource not accessible")) {
+        return Response.json({
+          status: "success",
+          data: {
+            sha,
+            overallStatus: "unavailable",
+            overallConclusion: "unavailable",
+            checkRuns: [],
+            commitStatuses: [],
+            totalCount: 0,
+            permissionError: true,
+          },
+        });
+      }
+      throw error;
+    }
 
     // Fetch commit status (for services that use status API instead of checks)
     const statusResponse = await octokit.rest.repos.getCombinedStatusForRef({
