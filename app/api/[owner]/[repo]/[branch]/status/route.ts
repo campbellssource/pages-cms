@@ -38,6 +38,7 @@ export async function GET(
     });
 
     const sha = branchData.data.commit.sha;
+    console.log(`[BuildStatus API] Fetching status for ${params.owner}/${params.repo}@${params.branch}, SHA: ${sha}`);
 
     // Try to fetch check runs - gracefully handle permission errors
     let checkRunsResponse;
@@ -74,6 +75,11 @@ export async function GET(
       ref: sha,
     });
 
+    console.log(`[BuildStatus API] Check runs: ${checkRunsResponse.data.check_runs.length}`, 
+      checkRunsResponse.data.check_runs.map(r => ({ name: r.name, conclusion: r.conclusion, status: r.status })));
+    console.log(`[BuildStatus API] Commit statuses: ${statusResponse.data.statuses.length}`, 
+      statusResponse.data.statuses.map(s => ({ context: s.context, state: s.state })));
+
     // Determine overall status based on the most recent run of each check
     let overallStatus = "success";
     let overallConclusion = "success";
@@ -109,13 +115,16 @@ export async function GET(
       }
     }
 
-    // Also consider commit statuses
-    if (statusResponse.data.state === "pending") {
-      overallStatus = "pending";
-      overallConclusion = "pending";
-    } else if (statusResponse.data.state === "failure" || statusResponse.data.state === "error") {
-      overallStatus = "failure";
-      overallConclusion = "failure";
+    // Only consider commit statuses if there are no check runs
+    // Check runs (GitHub Actions) are more authoritative than legacy commit statuses
+    if (checkRunsResponse.data.check_runs.length === 0) {
+      if (statusResponse.data.state === "pending") {
+        overallStatus = "pending";
+        overallConclusion = "pending";
+      } else if (statusResponse.data.state === "failure" || statusResponse.data.state === "error") {
+        overallStatus = "failure";
+        overallConclusion = "failure";
+      }
     }
 
     return Response.json({
