@@ -90,8 +90,8 @@ export function BuildStatus() {
 
   if (loading && !buildStatus) {
     return (
-      <div className="px-3 py-2 border-b">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="px-3 py-2 border-b h-[72px]">
+        <div className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
           <span>Loading build status...</span>
         </div>
@@ -100,7 +100,7 @@ export function BuildStatus() {
   }
 
   if (error || !buildStatus) {
-    return null; // Silently fail if no build status is available
+    return <div className="h-[72px]" />; // Reserve space even when hidden
   }
 
   const getStatusIcon = () => {
@@ -191,11 +191,11 @@ export function BuildStatus() {
   const githubActionsUrl = `https://github.com/${owner}/${repo}/actions`;
 
   if (buildStatus.totalCount === 0) {
-    return null; // Don't show if there are no checks
+    return <div className="h-[72px]" />; // Reserve space even when no checks
   }
 
   return (
-    <div className="px-3 py-2 border-b">
+    <div className="px-3 py-2 border-b h-[72px]">
       <Tooltip>
         <TooltipTrigger asChild>
           <a
