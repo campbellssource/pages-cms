@@ -21,7 +21,12 @@ export async function GET(
     if (!session) return new Response(null, { status: 401 });
 
     const token = await getToken(user, params.owner, params.repo);
-    if (!token) throw new Error("Token not found");
+    if (!token) {
+      return Response.json({
+        status: "error",
+        message: "GitHub token not found",
+      }, { status: 403 });
+    }
 
     const octokit = createOctokitInstance(token);
 

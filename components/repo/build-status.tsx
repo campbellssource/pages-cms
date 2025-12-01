@@ -60,12 +60,20 @@ export function BuildStatus() {
         setError(null);
         
         const response = await fetch(
-          `/api/${owner}/${repo}/${encodeURIComponent(config.branch)}/status`
+          `/api/${owner}/${repo}/${encodeURIComponent(config.branch)}/status`,
+          { 
+            signal: AbortSignal.timeout(10000) // 10 second timeout
+          }
         );
         
         if (!response.ok) {
-          const errorText = await response.text();
+          const errorText = await response.text().catch(() => "Unable to read response");
           console.error(`Build status API error (${response.status}):`, errorText);
+          
+          // Stop polling on client errors (4xx) and server errors (5xx)
+          if (response.status >= 400) {
+            setFailureCount(999);
+          }
           throw new Error(`Failed to fetch build status: ${response.status}`);
         }
         
@@ -83,8 +91,11 @@ export function BuildStatus() {
           throw new Error(data.message || "Failed to fetch build status");
         }
       } catch (err: any) {
-        console.error("Error fetching build status:", err);
-        setError(err.message);
+        // Silently handle errors after first failure to avoid console spam
+        if (failureCount === 0) {
+          console.error("Build status unavailable:", err.message || err);
+        }
+        setError(err.message || "Network error");
         setFailureCount(prev => prev + 1);
       } finally {
         setLoading(false);
