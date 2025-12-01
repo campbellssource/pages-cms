@@ -110,10 +110,17 @@ export async function GET(
       },
     });
   } catch (error: any) {
-    console.error("Error fetching build status:", error);
+    console.error("Error fetching build status:", {
+      owner: params.owner,
+      repo: params.repo,
+      branch: params.branch,
+      error: error.message,
+      stack: error.stack,
+    });
     return Response.json({
       status: "error",
-      message: error.message,
+      message: error.message || "Unknown error occurred",
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
     }, { status: 500 });
   }
 }

@@ -46,6 +46,7 @@ export function BuildStatus() {
   const [buildStatus, setBuildStatus] = useState<BuildStatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [failureCount, setFailureCount] = useState(0);
 
   useEffect(() => {
     if (!config?.branch) return;
@@ -62,6 +63,8 @@ export function BuildStatus() {
         );
         
         if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Build status API error (${response.status}):`, errorText);
           throw new Error(`Failed to fetch build status: ${response.status}`);
         }
         
@@ -69,12 +72,14 @@ export function BuildStatus() {
         
         if (data.status === "success") {
           setBuildStatus(data.data);
+          setFailureCount(0); // Reset failure count on success
         } else {
-          setError(data.message || "Failed to fetch build status");
+          throw new Error(data.message || "Failed to fetch build status");
         }
       } catch (err: any) {
         console.error("Error fetching build status:", err);
         setError(err.message);
+        setFailureCount(prev => prev + 1);
       } finally {
         setLoading(false);
       }
@@ -82,11 +87,15 @@ export function BuildStatus() {
 
     fetchStatus();
 
-    // Poll for updates every 10 seconds
-    const interval = setInterval(fetchStatus, 10000);
+    // Poll for updates every 10 seconds, but stop after 3 consecutive failures
+    const interval = setInterval(() => {
+      if (failureCount < 3) {
+        fetchStatus();
+      }
+    }, 10000);
 
     return () => clearInterval(interval);
-  }, [config?.branch, owner, repo]);
+  }, [config?.branch, owner, repo, failureCount, buildStatus]);
 
   if (loading && !buildStatus) {
     return (
