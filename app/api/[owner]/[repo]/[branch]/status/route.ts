@@ -74,7 +74,7 @@ export async function GET(
       ref: sha,
     });
 
-    // Determine overall status
+    // Determine overall status based on the most recent run of each check
     let overallStatus = "success";
     let overallConclusion = "success";
 
@@ -82,10 +82,21 @@ export async function GET(
     if (checkRunsResponse.data.check_runs.length > 0) {
       const checkRuns = checkRunsResponse.data.check_runs;
       
-      const hasFailure = checkRuns.some(run => 
+      // Group by check name and get the most recent run for each
+      const latestRuns = new Map<string, typeof checkRuns[0]>();
+      for (const run of checkRuns) {
+        const existing = latestRuns.get(run.name);
+        if (!existing || new Date(run.started_at || 0) > new Date(existing.started_at || 0)) {
+          latestRuns.set(run.name, run);
+        }
+      }
+      
+      const latestRunsArray = Array.from(latestRuns.values());
+      
+      const hasFailure = latestRunsArray.some(run => 
         run.conclusion === "failure" || run.conclusion === "cancelled" || run.conclusion === "timed_out"
       );
-      const hasPending = checkRuns.some(run => 
+      const hasPending = latestRunsArray.some(run => 
         run.status === "queued" || run.status === "in_progress"
       );
 
