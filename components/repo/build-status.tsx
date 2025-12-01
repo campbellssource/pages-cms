@@ -5,7 +5,6 @@ import { useConfig } from "@/contexts/config-context";
 import { useRepo } from "@/contexts/repo-context";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, XCircle, Loader2, Clock, ExternalLink } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
