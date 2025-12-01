@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useConfig } from "@/contexts/config-context";
 import { useRepo } from "@/contexts/repo-context";
 import { cn } from "@/lib/utils";
@@ -47,7 +47,7 @@ export function BuildStatus() {
   const [buildStatus, setBuildStatus] = useState<BuildStatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [failureCount, setFailureCount] = useState(0);
+  const shouldStopRef = useRef(false);
 
   useEffect(() => {
     if (!config?.branch) {
@@ -56,14 +56,14 @@ export function BuildStatus() {
     }
 
     console.log("[BuildStatus] Starting status polling for", `${owner}/${repo}/${config.branch}`);
-    let failures = 0;
     let isMounted = true;
+    shouldStopRef.current = false;
 
     const fetchStatus = async () => {
-      console.log(`[BuildStatus] Fetch attempt - failures: ${failures}, isMounted: ${isMounted}`);
+      console.log(`[BuildStatus] Fetch attempt - shouldStop: ${shouldStopRef.current}, isMounted: ${isMounted}`);
       
-      if (failures >= 3) {
-        console.log("[BuildStatus] Max failures reached, stopping fetch");
+      if (shouldStopRef.current) {
+        console.log("[BuildStatus] Polling stopped, skipping fetch");
         return;
       }
       
@@ -88,44 +88,48 @@ export function BuildStatus() {
           console.error("[BuildStatus] Error response:", {
             status: response.status,
             statusText: response.statusText,
-            body: errorText,
-            failures: failures
+            body: errorText
           });
           
-          failures = 999; // Stop polling immediately on any error
+          shouldStopRef.current = true; // Stop polling immediately on any error
           throw new Error(`Failed to fetch build status: ${response.status}`);
         }
         
         const data = await response.json();
         console.log("[BuildStatus] Response data:", data);
         
-        if (data.status === "success" && isMounted) {
+        if (data.status === "success") {
+          if (!isMounted) {
+            console.log("[BuildStatus] Response received but component unmounted, ignoring");
+            return;
+          }
+          
           console.log("[BuildStatus] Success! Setting build status");
           setBuildStatus(data.data);
-          failures = 0; // Reset on success
           
           // If there's a permission error, stop polling permanently
           if (data.data.permissionError) {
             console.warn("[BuildStatus] Permission error detected, stopping polling");
-            failures = 999;
+            shouldStopRef.current = true;
           }
         } else {
           throw new Error(data.message || "Failed to fetch build status");
         }
       } catch (err: any) {
+        if (!isMounted) {
+          console.log("[BuildStatus] Error caught but component unmounted, ignoring");
+          return;
+        }
+        
         console.error("[BuildStatus] Fetch error:", {
           message: err.message,
           name: err.name,
-          stack: err.stack,
-          failures: failures,
           isMounted: isMounted
         });
         
-        if (isMounted) {
-          setError(err.message || "Network error");
-          failures = Math.min(failures + 1, 999);
-          console.log("[BuildStatus] Updated failure count to:", failures);
-        }
+        setError(err.message || "Network error");
+        shouldStopRef.current = true;
+        console.log("[BuildStatus] Error occurred, stopping polling");
       } finally {
         if (isMounted) {
           setLoading(false);
