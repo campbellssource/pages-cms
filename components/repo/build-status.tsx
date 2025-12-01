@@ -50,86 +50,57 @@ export function BuildStatus() {
   const shouldStopRef = useRef(false);
 
   useEffect(() => {
-    if (!config?.branch) {
-      console.log("[BuildStatus] No branch configured, skipping");
-      return;
-    }
+    if (!config?.branch) return;
 
-    console.log("[BuildStatus] Starting status polling for", `${owner}/${repo}/${config.branch}`);
     let isMounted = true;
     shouldStopRef.current = false;
 
     const fetchStatus = async () => {
-      console.log(`[BuildStatus] Fetch attempt - shouldStop: ${shouldStopRef.current}, isMounted: ${isMounted}`);
-      
-      if (shouldStopRef.current) {
-        console.log("[BuildStatus] Polling stopped, skipping fetch");
-        return;
-      }
+      if (shouldStopRef.current || !isMounted) return;
       
       try {
         if (buildStatus === null) {
-          console.log("[BuildStatus] First load, setting loading state");
           setLoading(true);
         }
         setError(null);
         
-        const url = `/api/${owner}/${repo}/${encodeURIComponent(config.branch)}/status`;
-        console.log("[BuildStatus] Fetching:", url);
-        
-        const response = await fetch(url, { 
-          signal: AbortSignal.timeout(10000) // 10 second timeout
-        });
-        
-        console.log("[BuildStatus] Response status:", response.status, response.ok);
+        const response = await fetch(
+          `/api/${owner}/${repo}/${encodeURIComponent(config.branch)}/status`,
+          { signal: AbortSignal.timeout(10000) }
+        );
         
         if (!response.ok) {
           const errorText = await response.text().catch(() => "Unable to read response");
-          console.error("[BuildStatus] Error response:", {
-            status: response.status,
-            statusText: response.statusText,
-            body: errorText
-          });
-          
-          shouldStopRef.current = true; // Stop polling immediately on any error
+          console.warn("[BuildStatus] API error:", response.status, errorText);
+          shouldStopRef.current = true;
           throw new Error(`Failed to fetch build status: ${response.status}`);
         }
         
         const data = await response.json();
-        console.log("[BuildStatus] Response data:", data);
         
         if (data.status === "success") {
-          if (!isMounted) {
-            console.log("[BuildStatus] Response received but component unmounted, ignoring");
-            return;
-          }
+          if (!isMounted) return;
           
-          console.log("[BuildStatus] Success! Setting build status");
           setBuildStatus(data.data);
           
           // If there's a permission error, stop polling permanently
           if (data.data.permissionError) {
-            console.warn("[BuildStatus] Permission error detected, stopping polling");
+            console.info("[BuildStatus] GitHub Checks API not accessible - feature disabled");
             shouldStopRef.current = true;
           }
         } else {
           throw new Error(data.message || "Failed to fetch build status");
         }
       } catch (err: any) {
-        if (!isMounted) {
-          console.log("[BuildStatus] Error caught but component unmounted, ignoring");
-          return;
-        }
+        if (!isMounted) return;
         
-        console.error("[BuildStatus] Fetch error:", {
-          message: err.message,
-          name: err.name,
-          isMounted: isMounted
-        });
+        // Only log if it's not a typical permission/network issue
+        if (!shouldStopRef.current) {
+          console.warn("[BuildStatus] Fetch failed:", err.message);
+        }
         
         setError(err.message || "Network error");
         shouldStopRef.current = true;
-        console.log("[BuildStatus] Error occurred, stopping polling");
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -140,13 +111,9 @@ export function BuildStatus() {
     fetchStatus();
 
     // Poll for updates every 10 seconds
-    const interval = setInterval(() => {
-      console.log("[BuildStatus] Polling interval triggered");
-      fetchStatus();
-    }, 10000);
+    const interval = setInterval(fetchStatus, 10000);
 
     return () => {
-      console.log("[BuildStatus] Cleanup: stopping polling");
       isMounted = false;
       clearInterval(interval);
     };
@@ -222,21 +189,44 @@ export function BuildStatus() {
 
   const getStatusText = () => {
     if (buildStatus.overallStatus === "pending") {
-      return "Building...";
+      return "Build in progress";
     }
     if (buildStatus.overallConclusion === "success") {
-      return "Build passing";
+      return "Build passed";
     }
     if (buildStatus.overallConclusion === "failure") {
-      return "Build failing";
+      return "Build failed";
     }
-    return "No builds";
+    return "No build";
   };
   
   const getStatusSubtext = () => {
     const mostRecent = getMostRecentTimestamp();
-    if (!mostRecent) return null;
-    return formatTimeAgo(mostRecent);
+    
+    if (buildStatus.overallStatus === "pending") {
+      // Show how long the build has been running
+      const oldestStarted = buildStatus.checkRuns
+        .map(run => run.startedAt)
+        .filter((t): t is string => t !== null)
+        .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
+      
+      if (oldestStarted) {
+        return `Started ${formatTimeAgo(oldestStarted)}`;
+      }
+      return "Starting...";
+    }
+    
+    if (buildStatus.overallConclusion === "success") {
+      // Show when it completed
+      return mostRecent ? `Completed ${formatTimeAgo(mostRecent)}` : "Completed";
+    }
+    
+    if (buildStatus.overallConclusion === "failure") {
+      // Show when it failed
+      return mostRecent ? `Failed ${formatTimeAgo(mostRecent)}` : "Failed";
+    }
+    
+    return null;
   };
 
   const getStatusColor = () => {
