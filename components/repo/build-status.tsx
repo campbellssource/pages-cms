@@ -53,7 +53,9 @@ export function BuildStatus() {
 
     const fetchStatus = async () => {
       try {
-        setLoading(true);
+        if (buildStatus === null) {
+          setLoading(true);
+        }
         setError(null);
         
         const response = await fetch(
