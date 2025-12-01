@@ -52,7 +52,12 @@ export function BuildStatus() {
   useEffect(() => {
     if (!config?.branch) return;
 
+    let failures = 0;
+    let isMounted = true;
+
     const fetchStatus = async () => {
+      if (failures >= 3) return; // Stop fetching after 3 failures
+      
       try {
         if (buildStatus === null) {
           setLoading(true);
@@ -68,51 +73,53 @@ export function BuildStatus() {
         
         if (!response.ok) {
           const errorText = await response.text().catch(() => "Unable to read response");
-          console.error(`Build status API error (${response.status}):`, errorText);
           
-          // Stop polling on client errors (4xx) and server errors (5xx)
-          if (response.status >= 400) {
-            setFailureCount(999);
+          // Only log the first error
+          if (failures === 0) {
+            console.warn("Build status unavailable - feature disabled");
           }
+          
+          failures = 999; // Stop polling immediately on any error
           throw new Error(`Failed to fetch build status: ${response.status}`);
         }
         
         const data = await response.json();
         
-        if (data.status === "success") {
+        if (data.status === "success" && isMounted) {
           setBuildStatus(data.data);
-          setFailureCount(0); // Reset failure count on success
+          failures = 0; // Reset on success
           
           // If there's a permission error, stop polling permanently
           if (data.data.permissionError) {
-            setFailureCount(999); // Stop polling
+            failures = 999;
           }
         } else {
           throw new Error(data.message || "Failed to fetch build status");
         }
       } catch (err: any) {
-        // Silently handle errors after first failure to avoid console spam
-        if (failureCount === 0) {
-          console.error("Build status unavailable:", err.message || err);
+        if (isMounted) {
+          setError(err.message || "Network error");
+          failures = Math.min(failures + 1, 999);
         }
-        setError(err.message || "Network error");
-        setFailureCount(prev => prev + 1);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchStatus();
 
-    // Poll for updates every 10 seconds, but stop after 3 consecutive failures
+    // Poll for updates every 10 seconds
     const interval = setInterval(() => {
-      if (failureCount < 3) {
-        fetchStatus();
-      }
+      fetchStatus();
     }, 10000);
 
-    return () => clearInterval(interval);
-  }, [config?.branch, owner, repo, failureCount, buildStatus]);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [config?.branch, owner, repo]);
 
   if (loading && !buildStatus) {
     return (
