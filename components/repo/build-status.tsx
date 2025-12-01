@@ -50,56 +50,81 @@ export function BuildStatus() {
   const [failureCount, setFailureCount] = useState(0);
 
   useEffect(() => {
-    if (!config?.branch) return;
+    if (!config?.branch) {
+      console.log("[BuildStatus] No branch configured, skipping");
+      return;
+    }
 
+    console.log("[BuildStatus] Starting status polling for", `${owner}/${repo}/${config.branch}`);
     let failures = 0;
     let isMounted = true;
 
     const fetchStatus = async () => {
-      if (failures >= 3) return; // Stop fetching after 3 failures
+      console.log(`[BuildStatus] Fetch attempt - failures: ${failures}, isMounted: ${isMounted}`);
+      
+      if (failures >= 3) {
+        console.log("[BuildStatus] Max failures reached, stopping fetch");
+        return;
+      }
       
       try {
         if (buildStatus === null) {
+          console.log("[BuildStatus] First load, setting loading state");
           setLoading(true);
         }
         setError(null);
         
-        const response = await fetch(
-          `/api/${owner}/${repo}/${encodeURIComponent(config.branch)}/status`,
-          { 
-            signal: AbortSignal.timeout(10000) // 10 second timeout
-          }
-        );
+        const url = `/api/${owner}/${repo}/${encodeURIComponent(config.branch)}/status`;
+        console.log("[BuildStatus] Fetching:", url);
+        
+        const response = await fetch(url, { 
+          signal: AbortSignal.timeout(10000) // 10 second timeout
+        });
+        
+        console.log("[BuildStatus] Response status:", response.status, response.ok);
         
         if (!response.ok) {
           const errorText = await response.text().catch(() => "Unable to read response");
-          
-          // Only log the first error
-          if (failures === 0) {
-            console.warn("Build status unavailable - feature disabled");
-          }
+          console.error("[BuildStatus] Error response:", {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText,
+            failures: failures
+          });
           
           failures = 999; // Stop polling immediately on any error
           throw new Error(`Failed to fetch build status: ${response.status}`);
         }
         
         const data = await response.json();
+        console.log("[BuildStatus] Response data:", data);
         
         if (data.status === "success" && isMounted) {
+          console.log("[BuildStatus] Success! Setting build status");
           setBuildStatus(data.data);
           failures = 0; // Reset on success
           
           // If there's a permission error, stop polling permanently
           if (data.data.permissionError) {
+            console.warn("[BuildStatus] Permission error detected, stopping polling");
             failures = 999;
           }
         } else {
           throw new Error(data.message || "Failed to fetch build status");
         }
       } catch (err: any) {
+        console.error("[BuildStatus] Fetch error:", {
+          message: err.message,
+          name: err.name,
+          stack: err.stack,
+          failures: failures,
+          isMounted: isMounted
+        });
+        
         if (isMounted) {
           setError(err.message || "Network error");
           failures = Math.min(failures + 1, 999);
+          console.log("[BuildStatus] Updated failure count to:", failures);
         }
       } finally {
         if (isMounted) {
@@ -112,10 +137,12 @@ export function BuildStatus() {
 
     // Poll for updates every 10 seconds
     const interval = setInterval(() => {
+      console.log("[BuildStatus] Polling interval triggered");
       fetchStatus();
     }, 10000);
 
     return () => {
+      console.log("[BuildStatus] Cleanup: stopping polling");
       isMounted = false;
       clearInterval(interval);
     };
