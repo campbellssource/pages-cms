@@ -6,10 +6,10 @@ const schema = (field: Field) => {
   let zodSchema: z.ZodTypeAny = z.coerce.string();
 
   if (field.options?.multiple) {
-    zodSchema = z.array(zodSchema);
+    let arraySchema = z.array(zodSchema);
     
     if (field.required) {
-      zodSchema = zodSchema.min(1, "This field is required");
+      arraySchema = arraySchema.min(1, "This field is required");
     }
     
     zodSchema = z.preprocess(
@@ -18,7 +18,7 @@ const schema = (field: Field) => {
         // Ensure array values are converted to strings
         return Array.isArray(val) ? val.map(String) : val;
       },
-      zodSchema
+      arraySchema
     );
   } else {
     if (!field.required) {
